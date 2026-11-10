@@ -2,10 +2,9 @@ import os
 import re
 import string
 import sys
+from datetime import datetime
 
 import sublime
-
-from datetime import date
 
 from .logging import logger
 from .view import MdeTextCommand
@@ -56,9 +55,8 @@ class MdeOpenHomePageCommand(MdeTextCommand):
 
 class MdeOpenJournalCommand(MdeTextCommand):
     def run(self, edit):
-        today = date.today()
         date_format = self.view.settings().get("mde.journal.dateformat", DEFAULT_DATE_FORMAT)
-        name = today.strftime(date_format)
+        name = datetime.now().strftime(date_format)
 
         wiki_page = WikiPage(self.view)
         wiki_page.select_page(name)
@@ -97,7 +95,6 @@ class MdeOpenPageCommand(MdeTextCommand):
 
 
 class MdePrepareFromTemplateCommand(MdeTextCommand):
-
     DEFAULT_PAGE_TEMPLATE = "templates/PageTemplate.md"
     PRESET_TEMPLATE_TEXT = "# $title\n\n"
 
@@ -174,7 +171,7 @@ class WikiPage:
         return None
 
     def select_page(self, pagename):
-        logger.debug("Open page: %s" % (pagename))
+        logger.debug(f"Open page: {pagename}")
         if not pagename:
             return
 
@@ -186,12 +183,26 @@ class WikiPage:
         else:
             self.open_new_file(pagename)
 
+    def project_folders(self):
+        window = self.view.window()
+        if window and window.folders():
+            return window.folders()
+
+        filename = self.view.file_name()
+        if filename:
+            return [os.path.dirname(filename)]
+
+        return []
+
     def find_files_with_name(self, pagename):
         pagename = pagename.replace("\\", os.sep).replace(os.sep + os.sep, os.sep).strip()
 
-        self.current_file = self.view.file_name()
-        self.current_dir = os.path.dirname(self.current_file)
-        logger.debug("Locating page '%s' in: %s" % (pagename, self.current_dir))
+        search_dirs = self.project_folders()
+        if not search_dirs:
+            return []
+
+        sublime.status_message(f"Locating page '{pagename}' in: {search_dirs}")
+        logger.debug(f"Locating page '{pagename}' in: {search_dirs}")
 
         markdown_extension = self.view.settings().get(
             "mde.wikilinks.markdown_extension", DEFAULT_MARKDOWN_EXTENSION
@@ -199,38 +210,44 @@ class WikiPage:
 
         # Optionally strip extension...
         if pagename.endswith(markdown_extension):
-            search_pattern = "^%s$" % pagename
+            search_pattern = f"^{pagename}$"
         else:
-            search_pattern = "^%s%s$" % (pagename, markdown_extension)
+            search_pattern = f"^{pagename}{markdown_extension}$"
 
-        # Scan directory tree for files that match the pagename...
+        # Scan project directory trees for files that match the pagename...
         results = []
-        for dirname, _, files in self.list_dir_tree(self.current_dir):
-            for file in files:
-                if re.search(search_pattern, file):
-                    filename = os.path.join(dirname, file)
-                    results.append([self.extract_page_name(filename), filename])
+        for search_dir in search_dirs:
+            for dirname, _, files in self.list_dir_tree(search_dir):
+                for file in files:
+                    if re.search(search_pattern, file):
+                        filename = os.path.join(dirname, file)
+                        results.append([self.extract_page_name(filename), filename])
 
         return results
 
     def find_files_with_ref(self):
-        self.current_file = self.view.file_name()
-        self.current_dir, current_base = os.path.split(self.current_file)
-        self.current_name, _ = os.path.splitext(current_base)
+        current_file = self.view.file_name()
+        if not current_file:
+            return []
+        _, current_base = os.path.split(current_file)
+        search_dirs = self.project_folders()
+        sublime.status_message(f"Showing backlinks from: {search_dirs}")
+        current_name, _ = os.path.splitext(current_base)
 
         markdown_extension = self.view.settings().get(
             "mde.wikilinks.markdown_extension", DEFAULT_MARKDOWN_EXTENSION
         )
 
         results = []
-        for dirname, _, files in self.list_dir_tree(self.current_dir):
-            for file in files:
-                page_name, extension = os.path.splitext(file)
-                filename = os.path.join(dirname, file)
-                if extension == markdown_extension and self.contains_ref(
-                    filename, self.current_name
-                ):
-                    results.append([page_name, filename])
+        for search_dir in search_dirs:
+            for dirname, _, files in self.list_dir_tree(search_dir):
+                for file in files:
+                    page_name, extension = os.path.splitext(file)
+                    filename = os.path.join(dirname, file)
+                    if extension == markdown_extension and self.contains_ref(
+                        filename, current_name
+                    ):
+                        results.append([page_name, filename])
 
         return results
 
@@ -257,8 +274,19 @@ class WikiPage:
 
     def open_new_file(self, pagename):
         current_syntax = self.view.settings().get("syntax")
-        current_file = self.view.file_name()
-        current_dir = os.path.dirname(current_file)
+        search_dirs = self.project_folders()
+        if not search_dirs:
+            return
+
+        # Prefer current file location
+        filename = self.view.file_name()
+        if filename:
+            current_dir = os.path.dirname(filename)
+        else:
+            # Fallback to first project folder
+            current_dir = search_dirs[0]
+
+        sublime.status_message(f"New page location: {current_dir}")
 
         markdown_extension = self.view.settings().get(
             "mde.wikilinks.markdown_extension", DEFAULT_MARKDOWN_EXTENSION
@@ -296,17 +324,30 @@ class WikiPage:
             yield dir, dirnames, files
 
     def select_word_at_cursor(self):
-        word_region = None
+        sels = self.view.sel()
+        if not sels:
+            return None
 
-        selection = self.view.sel()
-        for region in selection:
-            word_region = self.view.word(region)
-            if not word_region.empty():
-                selection.clear()
-                selection.add(word_region)
-                return word_region
+        # return non-empty selection
+        sel = sels[0]
+        if not sel.empty():
+            return sel
 
-        return word_region
+        # return empty selection if surrounded by whitespace
+        reg = sublime.Region(sel.begin() - 1, sel.end())
+        if all(c in " \t\n" for c in self.view.substr(reg)):
+            return sel
+
+        # expand selection to word boundaries
+        reg = self.view.expand_by_class(
+            sel, classes=sublime.CLASS_WORD_START | sublime.CLASS_WORD_END, separators=" \t\n?*"
+        )
+        if not reg.empty():
+            sels.clear()
+            sels.add(reg)
+            return reg
+
+        return sel
 
     def show_quick_list(self, file_list):
         self.file_list = file_list
@@ -316,7 +357,7 @@ class WikiPage:
 
     def replace_selection_with_pagename(self, selected_index):
         if selected_index != -1:
-            page_name, file = self.file_list[selected_index]
+            page_name, _file = self.file_list[selected_index]
 
             logger.debug("Using selected page '%s'", page_name)
             self.view.run_command("mde_replace_selected", {"text": page_name})
@@ -324,9 +365,9 @@ class WikiPage:
     def find_matching_files(self, word_region):
         word = None if word_region.empty() else self.view.substr(word_region)
 
-        current_file = self.view.file_name()
-        current_dir, current_base = os.path.split(current_file)
-        logger.debug("Finding matching files for %s in %s", word, current_dir)
+        search_dirs = self.project_folders()
+        sublime.status_message(f"Finding matching files for {word} in {search_dirs}")
+        logger.debug("Finding matching files for %s in %s", word, search_dirs)
 
         markdown_extension = self.view.settings().get(
             "mde.wikilinks.markdown_extension", DEFAULT_MARKDOWN_EXTENSION
@@ -336,15 +377,16 @@ class WikiPage:
         if word is not None and word.endswith(markdown_extension):
             word = word[: -len(markdown_extension)]
 
-        # Scan directory tree for potential filenames that contain the word...
+        # Scan project directory trees for potential filenames that contain the word...
         results = []
-        for dirname, _, files in self.list_dir_tree(current_dir):
-            for file in files:
-                page_name, extension = os.path.splitext(file)
-                filename = os.path.join(dirname, file)
+        for search_dir in search_dirs:
+            for dirname, _, files in self.list_dir_tree(search_dir):
+                for file in files:
+                    page_name, extension = os.path.splitext(file)
+                    filename = os.path.join(dirname, file)
 
-                if extension == markdown_extension and (not word or word in page_name):
-                    results.append([page_name, filename])
+                    if extension == markdown_extension and (not word or word in page_name):
+                        results.append([page_name, filename])
 
         return results
 

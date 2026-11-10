@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'master'
-      - 'st3176'
     paths:
       - '.github/workflows/ci-syntax-tests.yml'
       - '**.sublime-syntax'
@@ -23,16 +22,17 @@ on:
 jobs:
   syntax_tests:
     name: Sublime Text ${{ matrix.build }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15 # default is 6 hours!
     strategy:
       matrix:
         include:
-          - build: 4107
-            default_packages: v4107
+          - build: 4200
+            default_packages: v4200
           - build: latest
             default_packages: master
-    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - uses: SublimeText/syntax-test-action@v2
         with:
           build: ${{ matrix.build }}

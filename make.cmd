@@ -52,38 +52,47 @@ goto :usage
 
 :RELEASE
     if "%2"== "" goto :usage
-    if not exist "messages/release-%2.md" (
-        echo Missing release-%2.md
-        exit /b 1
-    )
-    git checkout st3176 && git merge %2 --no-ff
+    set version=%2
+
+    git checkout master && git merge st4-develop --no-ff
     if not errorlevel 0 (
-        echo Unable to merge %2 into st3176!
+        echo Unable to merge st4-develop into master!
         exit /b 1
     )
-    git checkout master && git merge %2 --no-ff
-    if not errorlevel 0 (
-        echo Unable to merge %2 into master!
-        exit /b 1
-    )
-    echo Hit any key to push branches!
-    pause
-    call git push origin st3176
-    if not errorlevel 0 (
-        echo Failed to push st3176!
-        exit /b 1
-    )
+
     call git push origin master
     if not errorlevel 0 (
         echo Failed to push master!
         exit /b 1
     )
-    echo Hit any key to publish release!
-    pause
-    : create release for ST3
-    gh release create --target st3176 -t "MarkdownEditing %2 (ST3176+)" -F "messages/release-%2.md" "3176-%2"
-    : create release for ST3
-    gh release create --target master -t "MarkdownEditing %2 (ST4107+)" -F "messages/release-%2.md" "4107-%2"
+
+    for %%d in ("%~dp0.") do set package=%%~nxd
+
+    echo Createing assets for "%package%"...
+
+    :: create tag and download asset for ST4152+
+    set build=4107
+    set branch=st%build%
+    set tag=%build%-%version%
+    set archive=%package%-%version%-st%build%.sublime-package
+    set assets="%archive%#%archive%"
+    call git push origin %branch%
+    call git tag -f %tag% %branch%
+    call git push --force origin %tag%
+    call git archive --format zip -o "%archive%" %branch%
+
+    :: create tag and download asset for ST4200+ (master branch)
+    set build=4200
+    set branch=master
+    set tag=%build%-%version%
+    set archive=%package%-%version%-st%build%.sublime-package
+    set assets=%assets% "%archive%#%archive%"
+    call git push origin %branch%
+    call git archive --format zip -o "%archive%" %branch%
+
+    :: create the release
+    gh release create --target %branch% -t "%package% %version%" "%tag%" %assets%
+    del /f /q *.sublime-package
     git fetch
     goto :eof
 

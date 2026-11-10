@@ -67,6 +67,20 @@
 	},
 	"rules":
 	[
+		//
+		// Frontmatter
+		//
+
+		{
+			"name": "Frontmatter: Mapping Key Names",
+			"scope": "meta.mapping.key string, meta.mapping.key constant.language, meta.mapping.key constant.numeric",
+			"foreground": "#98ff46"
+		},
+
+		//
+		// Common
+		//
+
 		{
 			"name": "Comments",
 			"scope": "comment, comment punctuation",
@@ -266,8 +280,18 @@
 			"foreground": "#555555"
 		},
 		{
+			"name": "Markdown: Link URL Separators",
+			"scope": "markup.underline.link punctuation.separator",
+			"foreground": "#555555"
+		},
+		{
 			"name": "Markup: Plain Link",
-			"scope": "meta.link.inet markup.underline.link, meta.link.email.lt-gt markup.underline.link",
+			"scope": "meta.link.inet markup.underline.link, meta.link.email markup.underline.link",
+			"foreground": "#bbbb77"
+		},
+		{
+			"name": "Markdown: Plain Link Separators",
+			"scope": "meta.link.inet markup.underline.link punctuation.separator, meta.link.email markup.underline.link punctuation.separator",
 			"foreground": "#bbbb77"
 		},
 		{
@@ -350,6 +374,11 @@
 			"scope": "markup.strikethrough markup.kbd.content",
 			"foreground": "#484848"
 		},
+		{
+			"name": "Markdown: Underline",
+			"scope": "markup.underline",
+			"font_style": "underline"
+		},
 
 		//
 		// Markups
@@ -364,6 +393,12 @@
 			"name": "Markup: Prompt",
 			"scope": "markup.prompt",
 			"foreground": "#aaaaaa"
+		},
+		{
+			"name": "Markup: Highlight",
+			"scope": "markup.highlight",
+			"foreground": "var(critic_highlight_fg)",
+			"background": "var(critic_highlight_bg)"
 		},
 
 		//

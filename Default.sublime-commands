@@ -146,8 +146,12 @@
 	//
 
 	{
-		"caption": "MarkdownEditing: Toggle Folding Current Section",
+		"caption": "MarkdownEditing: Fold Current Section",
 		"command": "mde_fold_section"
+	},
+	{
+		"caption": "MarkdownEditing: Unold Current Section",
+		"command": "mde_unfold_section"
 	},
 	{
 		"caption": "MarkdownEditing: Fold Level 1 Sections",
@@ -199,6 +203,23 @@
 	{
 		"caption": "MarkdownEditing: Switch List Bullet Type",
 		"command": "mde_switch_list_bullet_type"
+	},
+
+	//
+	// Tasks
+	//
+
+	{
+		"caption": "MarkdownEditing: Insert Task",
+		"command": "mde_insert_task_list_item"
+	},
+	{
+		"caption": "MarkdownEditing: Toggle Task",
+		"command": "mde_toggle_task_list_item"
+	},
+	{
+		"caption": "MarkdownEditing: Reset Tasks",
+		"command": "mde_reset_task_list_items"
 	},
 
 	//
@@ -256,6 +277,19 @@
 	{
 		"caption": "MarkdownEditing: Organize References",
 		"command": "mde_reference_organize"
+	},
+
+	//
+	// CriticMarkup
+	//
+
+	{
+		"caption": "MarkdownEditing: Goto Next Critic",
+		"command": "mde_goto_next_critic"
+	},
+	{
+		"caption": "MarkdownEditing: Goto Previous Critic",
+		"command": "mde_goto_prev_critic"
 	},
 
 	//

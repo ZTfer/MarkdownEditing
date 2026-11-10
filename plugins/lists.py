@@ -1,4 +1,5 @@
 import re
+
 import sublime
 
 from .view import MdeTextCommand
@@ -28,7 +29,9 @@ class MdeBaseUnIndentListItemCommand(MdeTextCommand):
             tab_str = "\t"
 
         pattern = re.compile(
-            r"^(?:[\s>]*>\s)?(\s*)(?:([%s])\s)?" % "".join(re.escape(bullet) for bullet in bullets)
+            r"^(?:[\s>]*>\s)?(\s*)(?:([{}])\s)?".format(
+                "".join(re.escape(bullet) for bullet in bullets)
+            )
         )
 
         for sel in view.sel():
@@ -108,8 +111,9 @@ class MdeSwitchListBulletTypeCommand(MdeTextCommand):
         auto_increment = self.view.settings().get("mde.auto_increment_ordered_list_number", True)
         bullets = self.view.settings().get("mde.list_indent_bullets", ["*", "-", "+"])
         pattern = re.compile(
-            r"^\s*(?:>\s*)*(?:([%s])|(\d+[.)]))(\s+)"
-            % "".join(re.escape(bullet) for bullet in bullets)
+            r"^\s*(?:>\s*)*(?:([{}])|(\d+[.)]))(\s+)".format(
+                "".join(re.escape(bullet) for bullet in bullets)
+            )
         )
 
         for sel in self.view.sel():
@@ -186,7 +190,7 @@ class MdeInsertTaskListItemCommand(MdeTextCommand):
         align_text = self.view.settings().get("mde.list_align_text", True)
         bullets = self.view.settings().get("mde.list_indent_bullets", ["*", "-", "+"])
 
-        to_insert = "{} [ ]".format(bullets[0])
+        to_insert = f"{bullets[0]} [ ]"
         if align_text:
             to_insert += "\t"
         else:
@@ -194,6 +198,49 @@ class MdeInsertTaskListItemCommand(MdeTextCommand):
 
         for sel in self.view.sel():
             self.view.insert(edit, sel.begin(), to_insert)
+
+
+class MdeResetTaskListItemsCommand(MdeTextCommand):
+    """
+    The `mde_reset_task_list_items` command resets check mark of all task list items.
+
+    It must be called in the line of the check mark.
+
+    **Examples:**
+
+    ```markdown
+    # Ordered Task List
+
+    1. [ ] task 1
+    2. [x] task 2
+
+    # Unordered Task List
+
+    * [ ] task 1
+    - [x] task 2
+    + [ ] task 3
+
+    # Quoted Task List
+
+    > * [ ] task 1
+    > * [x] task 2
+    ```
+    """
+
+    def run(self, edit):
+        sels = self.view.sel()
+        if not sels:
+            return
+
+        # list of non-empty selections
+        sels = [sel for sel in sels if not sel.empty()]
+
+        # replace all check marks by space
+        for mark in self.view.find_by_selector(
+            "text.html.markdown markup.list markup.checkbox.mark"
+        ):
+            if not sels or any(mark in sel for sel in sels):
+                self.view.replace(edit, mark, " ")
 
 
 class MdeToggleTaskListItemCommand(MdeTextCommand):
@@ -205,21 +252,21 @@ class MdeToggleTaskListItemCommand(MdeTextCommand):
     **Examples:**
 
     ```markdown
-    # Orderd Task List
+    # Ordered Task List
 
     1. [ ] task 1
-    2. [X] task 2
+    2. [x] task 2
 
-    # Unorderd Task List
+    # Unordered Task List
 
     * [ ] task 1
-    - [X] task 2
+    - [x] task 2
     + [ ] task 3
 
     # Quoted Task List
 
     > * [ ] task 1
-    > * [X] task 2
+    > * [x] task 2
     ```
     """
 
@@ -231,7 +278,7 @@ class MdeToggleTaskListItemCommand(MdeTextCommand):
             (?: [ \t]+\[([ xX])\] ) # GFM task checkbox
             (?: [ \t]+ | $ )        # at least one space,tab or eol
             """,
-            re.X,
+            re.VERBOSE,
         )
 
         for sel in self.view.sel():
@@ -245,7 +292,7 @@ class MdeToggleTaskListItemCommand(MdeTextCommand):
                 region.a += match.start(1)
                 region.b = region.a + 1
 
-                self.view.replace(edit, region, "X" if match.group(1) == " " else " ")
+                self.view.replace(edit, region, "x" if match.group(1) == " " else " ")
 
 
 class MdeJoinLines(MdeTextCommand):
@@ -271,7 +318,7 @@ class MdeJoinLines(MdeTextCommand):
             )?
             (\S|$)                      # first char of content, if any
             """,
-            re.X,
+            re.VERBOSE,
         )
 
         for sel in view.sel():
